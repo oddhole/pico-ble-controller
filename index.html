@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pico W LED Controller</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+        
+        .status.disconnected {
+            background: rgba(220, 53, 69, 0.3);
+            border: 2px solid #dc3545;
+        }
+        
+        .status.connected {
+            background: rgba(40, 167, 69, 0.3);
+            border: 2px solid #28a745;
+        }
+        
+        .led-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .led-off {
+            background: #666;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .led-on {
+            background: #00ff00;
+            box-shadow: 0 0 20px #00ff00, inset 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        
+        button {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .connect-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 100%;
+            font-size: 1.3em;
+            margin: 20px 0;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        
+        .led-status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.5em;
+        }
+        
+        .info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #ffd700;
+        }
+        
+        .info h3 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 Pico W LED Controller</h1>
+        
+        <div class="info">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Make sure your Pico W is running the MicroPython code</li>
+                <li>Use Chrome or Edge browser (Web Bluetooth required)</li>
+                <li>Click "Connect to Pico W" below</li>
+                <li>Select "PicoW-LED" from the device list</li>
+            </ol>
+        </div>
+        
+        <button id="connectBtn" class="connect-btn">🔗 Connect to Pico W</button>
+        
+        <div id="status" class="status disconnected">
+            📱 Not Connected
+        </div>
+        
+        <div class="led-status">
+            <span class="led-indicator led-off" id="ledIndicator"></span>
+            LED Status: <span id="ledStatus">OFF</span>
+        </div>
+        
+        <div class="controls">
+            <button id="onBtn" disabled>💡 Turn ON</button>
+            <button id="offBtn" disabled>⚫ Turn OFF</button>
+            <button id="toggleBtn" disabled>🔄 Toggle</button>
+        </div>
+    </div>
+
+    <script>
+        class PicoWController {
+            constructor() {
+                this.device = null;
+                this.server = null;
+                this.service = null;
+                this.characteristic = null;
+                this.isConnected = false;
+                
+                // Service and characteristic UUIDs (must match Pico W code)
+                this.SERVICE_UUID = '12345678-1234-1234-1234-123456789abc';
+                this.CHAR_UUID = '87654321-4321-4321-4321-cba987654321';
+                
+                this.initializeUI();
+            }
+            
+            initializeUI() {
+                document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+                document.getElementById('onBtn').addEventListener('click', () => this.sendCommand('on'));
+                document.getElementById('offBtn').addEventListener('click', () => this.sendCommand('off'));
+                document.getElementById('toggleBtn').addEventListener('click', () => this.sendCommand('toggle'));
+            }
+            
+            async connect() {
+                try {
+                    console.log('Requesting Bluetooth device...');
+                    
+                    this.device = await navigator.bluetooth.requestDevice({
+                        filters: [{ name: 'PicoW-LED' }],
+                        optionalServices: [this.SERVICE_UUID]
+                    });
+                    
+                    console.log('Connecting to GATT Server...');
+                    this.server = await this.device.gatt.connect();
+                    
+                    console.log('Getting LED service...');
+                    this.service = await this.server.getPrimaryService(this.SERVICE_UUID);
+                    
+                    console.log('Getting LED characteristic...');
+                    this.characteristic = await this.service.getCharacteristic(this.CHAR_UUID);
+                    
+                    // Start notifications to receive status updates
+                    await this.characteristic.startNotifications();
+                    this.characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                        const status = new TextDecoder().decode(event.target.value);
+                        this.updateLEDStatus(status);
+                    });
+                    
+                    // Handle disconnection
+                    this.device.addEventListener('gattserverdisconnected', () => {
+                        this.onDisconnected();
+                    });
+                    
+                    this.onConnected();
+                    
+                    // Request current status
+                    await this.sendCommand('status');
+                    
+                } catch (error) {
+                    console.error('Connection failed:', error);
+                    alert('Connection failed: ' + error.message);
+                }
+            }
+            
+            async sendCommand(command) {
+                if (!this.characteristic) {
+                    alert('Not connected to Pico W!');
+                    return;
+                }
+                
+                try {
+                    const encoder = new TextEncoder();
+                    await this.characteristic.writeValue(encoder.encode(command));
+                    console.log('Command sent:', command);
+                } catch (error) {
+                    console.error('Failed to send command:', error);
+                    alert('Failed to send command: ' + error.message);
+                }
+            }
+            
+            onConnected() {
+                this.isConnected = true;
+                document.getElementById('status').textContent = '✅ Connected to Pico W';
+                document.getElementById('status').className = 'status connected';
+                document.getElementById('connectBtn').textContent = '🔗 Connected';
+                document.getElementById('connectBtn').disabled = true;
+                
+                // Enable control buttons
+                document.getElementById('onBtn').disabled = false;
+                document.getElementById('offBtn').disabled = false;
+                document.getElementById('toggleBtn').disabled = false;
+            }
+            
+            onDisconnected() {
+                this.isConnected = false;
+                document.getElementById('status').textContent = '❌ Disconnected';
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('connectBtn').textContent = '🔗 Connect to Pico W';
+                document.getElementById('connectBtn').disabled = false;
+                
+                // Disable control buttons
+                document.getElementById('onBtn').disabled = true;
+                document.getElementById('offBtn').disabled = true;
+                document.getElementById('toggleBtn').disabled = true;
+                
+                // Reset LED indicator
+                this.updateLEDStatus('off');
+            }
+            
+            updateLEDStatus(status) {
+                const indicator = document.getElementById('ledIndicator');
+                const statusText = document.getElementById('ledStatus');
+                
+                if (status.toLowerCase() === 'on') {
+                    indicator.className = 'led-indicator led-on';
+                    statusText.textContent = 'ON';
+                } else {
+                    indicator.className = 'led-indicator led-off';
+                    statusText.textContent = 'OFF';
+                }
+            }
+        }
+        
+        // Check Web Bluetooth support
+        if (!navigator.bluetooth) {
+            alert('Web Bluetooth is not supported in this browser. Please use Chrome or Edge.');
+        } else {
+            // Initialize the controller
+            const controller = new PicoWController();
+        }
+    </script>
+</body>
+</html>
