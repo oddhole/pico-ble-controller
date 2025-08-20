@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Bluetooth Support Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .pass { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .fail { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .code { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            border-radius: 3px; 
+            font-family: monospace; 
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Web Bluetooth Support Test</h1>
+        
+        <div id="results">
+            <div class="info">Running tests...</div>
+        </div>
+        
+        <button id="testBasicBluetooth">Test Basic Bluetooth Support</button>
+        <button id="testBluetoothScan">Test Bluetooth Scan</button>
+        <button id="testSpecificDevice">Test for PicoW-LED Device</button>
+        
+        <div id="deviceList"></div>
+    </div>
+
+    <script>
+        let results = [];
+        
+        function addResult(message, type) {
+            results.push({message, type});
+            updateResults();
+        }
+        
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = results.map(r => 
+                `<div class="test-result ${r.type}">${r.message}</div>`
+            ).join('');
+        }
+        
+        function runInitialTests() {
+            results = [];
+            
+            // Test 1: Basic Web Bluetooth API availability
+            if (!navigator.bluetooth) {
+                addResult('❌ Web Bluetooth API not available in this browser', 'fail');
+                addResult('ℹ️ Web Bluetooth is only supported in Chrome, Edge, and some Chromium-based browsers', 'info');
+                addResult('ℹ️ Firefox does not support Web Bluetooth', 'warning');
+                return;
+            } else {
+                addResult('✅ Web Bluetooth API is available', 'pass');
+            }
+            
+            // Test 2: HTTPS requirement
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                addResult('❌ Web Bluetooth requires HTTPS (or localhost)', 'fail');
+                addResult(`ℹ️ Current protocol: ${location.protocol}`, 'info');
+                return;
+            } else {
+                addResult('✅ HTTPS requirement satisfied', 'pass');
+            }
+            
+            // Test 3: Browser version
+            const userAgent = navigator.userAgent;
+            if (userAgent.includes('Chrome')) {
+                const chromeVersion = userAgent.match(/Chrome\/(\d+)/);
+                if (chromeVersion && parseInt(chromeVersion[1]) >= 56) {
+                    addResult('✅ Chrome version supports Web Bluetooth', 'pass');
+                } else {
+                    addResult('⚠️ Chrome version may be too old for Web Bluetooth', 'warning');
+                }
+            } else if (userAgent.includes('Edg')) {
+                addResult('✅ Microsoft Edge detected (should support Web Bluetooth)', 'pass');
+            } else if (userAgent.includes('Firefox')) {
+                addResult('❌ Firefox does not support Web Bluetooth', 'fail');
+            } else {
+                addResult('⚠️ Unknown browser - Web Bluetooth support uncertain', 'warning');
+            }
+            
+            // Test 4: Platform support
+            if (userAgent.includes('Windows')) {
+                addResult('✅ Windows platform (good Web Bluetooth support)', 'pass');
+            } else if (userAgent.includes('Mac')) {
+                addResult('✅ macOS platform (good Web Bluetooth support)', 'pass');
+            } else if (userAgent.includes('Linux')) {
+                addResult('⚠️ Linux platform (Web Bluetooth support varies)', 'warning');
+            } else if (userAgent.includes('Android')) {
+                addResult('✅ Android platform (good Web Bluetooth support)', 'pass');
+            } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+                addResult('❌ iOS does not support Web Bluetooth', 'fail');
+            }
+            
+            addResult('ℹ️ Click the buttons below to test actual Bluetooth functionality', 'info');
+        }
+        
+        // Test basic bluetooth availability
+        document.getElementById('testBasicBluetooth').addEventListener('click', async () => {
+            try {
+                if (!navigator.bluetooth) {
+                    addResult('❌ navigator.bluetooth is not available', 'fail');
+                    return;
+                }
+                
+                const availability = await navigator.bluetooth.getAvailability();
+                if (availability) {
+                    addResult('✅ Bluetooth adapter is available and enabled', 'pass');
+                } else {
+                    addResult('❌ Bluetooth adapter not available or disabled', 'fail');
+                    addResult('ℹ️ Make sure Bluetooth is turned on in your system settings', 'info');
+                }
+            } catch (error) {
+                addResult(`❌ Error checking Bluetooth availability: ${error.message}`, 'fail');
+            }
+        });
+        
+        // Test bluetooth scanning
+        document.getElementById('testBluetoothScan').addEventListener('click', async () => {
+            try {
+                addResult('🔍 Requesting Bluetooth device...', 'info');
+                
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['battery_service', 'device_information']
+                });
+                
+                addResult(`✅ Found device: ${device.name || 'Unknown'} (${device.id})`, 'pass');
+                
+                // Try to connect
+                addResult('🔗 Attempting to connect...', 'info');
+                const server = await device.gatt.connect();
+                addResult('✅ Successfully connected to device!', 'pass');
+                
+                server.disconnect();
+                addResult('✅ Bluetooth functionality is working!', 'pass');
+                
+            } catch (error) {
+                if (error.name === 'NotFoundError') {
+                    addResult('ℹ️ No device selected (user cancelled)', 'warning');
+                } else {
+                    addResult(`❌ Bluetooth scan failed: ${error.message}`, 'fail');
+                }
+            }
+        });
+        
+        // Test for specific PicoW device
+        document.getElementById('testSpecificDevice').addEventListener('click', async () => {
+            try {
+                addResult('🔍 Looking specifically for PicoW-LED...', 'info');
+                
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'PicoW-LED' }],
+                    optionalServices: ['12345678-1234-5678-1234-123456789abc']
+                });
+                
+                addResult(`✅ Found PicoW-LED device!`, 'pass');
+                addResult(`Device ID: ${device.id}`, 'info');
+                
+                // Try to connect
+                addResult('🔗 Connecting to PicoW-LED...', 'info');
+                const server = await device.gatt.connect();
+                addResult('✅ Connected to PicoW-LED!', 'pass');
+                
+                // Try to get service
+                const service = await server.getPrimaryService('12345678-1234-5678-1234-123456789abc');
+                addResult('✅ Found LED service!', 'pass');
+                
+                // Try to get characteristic
+                const characteristic = await service.getCharacteristic('87654321-1234-5678-1234-cba987654321');
+                addResult('✅ Found LED characteristic!', 'pass');
+                
+                addResult('🎉 Everything is working! Your setup should work fine.', 'pass');
+                
+                server.disconnect();
+                
+            } catch (error) {
+                if (error.name === 'NotFoundError') {
+                    addResult('❌ PicoW-LED device not found', 'fail');
+                    addResult('ℹ️ Make sure your Pico W is running and advertising', 'info');
+                    addResult('ℹ️ Try the general Bluetooth scan first to see what devices are available', 'info');
+                } else {
+                    addResult(`❌ Error connecting to PicoW-LED: ${error.message}`, 'fail');
+                }
+            }
+        });
+        
+        // Run initial tests when page loads
+        runInitialTests();
+    </script>
+</body>
+</html>
