@@ -141,12 +141,12 @@
             <ol>
                 <li>Make sure your Pico W is running the MicroPython code</li>
                 <li>Use Chrome or Edge browser (Web Bluetooth required)</li>
-                <li>Click "Connect to Pico W" below</li>
-                <li>Select "PicoW-LED" from the device list</li>
+                <li>Click "Connect to Any Bluetooth Device" below</li>
+                <li>Select your "PicoW-LED" device from the list</li>
             </ol>
         </div>
         
-        <button id="connectBtn" class="connect-btn">🔗 Connect to Pico W</button>
+        <button id="connectBtn" class="connect-btn">🔗 Connect to Any Bluetooth Device</button>
         
         <div id="status" class="status disconnected">
             📱 Not Connected
@@ -192,7 +192,7 @@
                     console.log('Requesting Bluetooth device...');
                     
                     this.device = await navigator.bluetooth.requestDevice({
-                        filters: [{ name: 'PicoW-LED' }],
+                        acceptAllDevices: true,
                         optionalServices: [this.SERVICE_UUID]
                     });
                     
